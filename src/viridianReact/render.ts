@@ -2,6 +2,8 @@ import { ReactHTML } from "react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let nextUnitOfWork: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let workInProgressRoot: any = null;
 
 /**
  * <div>
@@ -18,10 +20,10 @@ const performUnitOfWork = (fiber: any) => {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
-  // 把创造好的fiber添加到parent里面
-  if (fiber.parent) {
-    fiber.parent.dom.appendChild(fiber.dom);
-  }
+  // // 把创造好的fiber添加到parent里面
+  // if (fiber.parent) {
+  //   fiber.parent.dom.appendChild(fiber.dom);
+  // }
 
   // 为当前的fiber创造他子节点的fiber 
   // parent child sibling 先补充子节点的 parent 跟 sibling，child只补充当前节点的child，等下次perform再填补充子节点的child
@@ -56,6 +58,19 @@ const performUnitOfWork = (fiber: any) => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const commitWork = (fiber: any) => {
+  if (!fiber) return;
+  fiber.parent.dom.appendChild(fiber.dom);
+  commitWork(fiber.child);
+  commitWork(fiber.sibling);
+};
+
+const commitRoot = () => {
+  commitWork(workInProgressRoot.child);
+  workInProgressRoot = null;
+}
+
 const workLoop = (deadline: {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   timeRemaining: Function;
@@ -66,6 +81,10 @@ const workLoop = (deadline: {
   while (shouldYield && nextUnitOfWork) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     shouldYield = deadline.timeRemaining() > 1; // 得到浏览器当前帧剩余的时间 scheduler
+  }
+
+  if (!nextUnitOfWork && workInProgressRoot) {
+    commitRoot();
   }
 
   requestIdleCallback(workLoop); // 浏览器在空闲的时候去执行workLoop
@@ -102,12 +121,14 @@ const render = (
   },
   container: HTMLElement | Text | null
 ) => {
-  nextUnitOfWork = {
+  workInProgressRoot = {
     dom: container,
     props: {
       children: [element],
     },
-  }
+  };
+
+  nextUnitOfWork = workInProgressRoot;
 };
 
 export default render;
