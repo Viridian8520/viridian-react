@@ -6,8 +6,28 @@ let nextUnitOfWork: any = null;
 let workInProgressRoot: any = null;
 let currentRoot: any = null;
 let deletions: any[] = [];
+let workInProgressFiber: any = null;
+let hooksIndex: number = 0;
 
-const reconcileChildren = (workInProgressFiber: any) => {
+/**
+ * function a() {
+ *  let a = 1;
+ *  return (
+ *    <h1 onClick>{a}</h1>
+ *  )
+ * }
+ */
+/**
+ * <div>
+ *   <h1>
+ *     <p></p>
+ *     <a></a>
+ *   </h1>
+ *   <h2></h2>
+ * </div>
+ */
+
+const reconcileChildren = (workInProgressFiber: any, elements: any) => {
   // 为当前的fiber创造他子节点的fiber
   // parent child sibling 先补充子节点的 parent 跟 sibling，child只补充当前节点的child，等下次perform再填补充子节点的child
   let prevSibling: any = null;
@@ -15,8 +35,8 @@ const reconcileChildren = (workInProgressFiber: any) => {
     workInProgressFiber.alternate && workInProgressFiber.alternate.child; // 这里取的是与下面workInProgressFiber?.props?.children同级的fiber
   let index = 0;
 
-  while (index < workInProgressFiber?.props?.children.length || !!oldFiber) {
-    const childNode = workInProgressFiber?.props?.children[index];
+  while (index < elements.length || !!oldFiber) {
+    const childNode = elements[index];
     let newFiber: any = null;
     const isSameType =
       oldFiber && childNode && childNode.type === oldFiber.type;
@@ -62,18 +82,45 @@ const reconcileChildren = (workInProgressFiber: any) => {
   }
 };
 
-/**
- * <div>
- *   <h1>
- *     <p></p>
- *     <a></a>
- *   </h1>
- *   <h2></h2>
- * </div>
- */
+export const useState = (initial: any) => {
+  const oldHook = workInProgressFiber?.alternate?.hooks?.[hooksIndex];
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [] as any,
+  };
 
-const performUnitOfWork = (fiber: any) => {
-  // 执行任务单元，即把 ReactElement（虚拟Dom）转化为一个真实 Dom
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action: any) => {
+    hook.state = action;
+  });
+
+  const setState = (action: any) => {
+    hook.queue.push(action);
+    workInProgressRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    }
+    nextUnitOfWork = workInProgressRoot;
+    deletions = [];
+  }
+
+  workInProgressFiber.hooks.push(hook);
+  hooksIndex++;
+
+  return [hook.state, setState];
+
+};
+
+const updateFunctionComponent = (fiber: any) => {
+  workInProgressFiber = fiber;
+  workInProgressFiber.hooks = [];
+  hooksIndex = 0;
+  const elements = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, elements);
+}
+
+const updateHostComponent = (fiber: any) => {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
@@ -82,8 +129,19 @@ const performUnitOfWork = (fiber: any) => {
   //   fiber.parent.dom.appendChild(fiber.dom);
   // }
 
+  const elements = fiber?.props?.children;
+
   // 为当前的fiber创造他子节点的fiber
-  reconcileChildren(fiber);
+  reconcileChildren(fiber, elements);
+}
+
+const performUnitOfWork = (fiber: any) => {
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber);
+  }
 
   // return出下一个任务单元
   if (fiber.child) {
@@ -153,18 +211,34 @@ const updateDom = (
   });
 };
 
+const commitDeletion = (fiber: any, domParent: any) => {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else {
+    // 为什么是child？不是下面的parent？
+    commitDeletion(fiber.child, domParent);
+  }
+}
+
 const commitWork = (fiber: any) => {
   if (!fiber) return;
   
+  let domParentFiber = fiber.parent;
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber.dom;
+
   switch (fiber.effectTag) {
     case "PLACEMENT":
-      !!fiber.dom && fiber.parent.dom.appendChild(fiber.dom);
+      !!fiber.dom && domParent.appendChild(fiber.dom);
       break;
     case "UPDATE":
       !!fiber.dom && updateDom(fiber.dom, fiber.alternate, fiber.props);
       break;
     case "DELETE":
-      !!fiber.dom && fiber.parent.dom.removeChild(fiber.dom);
+      // !!fiber.dom && domParent.removeChild(fiber.dom);
+      commitDeletion(fiber, domParent);
       break;
     default:
       break;
@@ -221,7 +295,7 @@ const createDom = (fiber: {
   return dom;
 };
 
-const render = (
+export const render = (
   element: {
     type: keyof ReactHTML | "TEXT_ELEMENT";
     props: { children: any[]; [propsName: string]: any };
@@ -239,5 +313,3 @@ const render = (
   nextUnitOfWork = workInProgressRoot;
   deletions = [];
 };
-
-export default render;

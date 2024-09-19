@@ -1,7 +1,8 @@
 import createElement from './createElement'
-import render from './render'
+import { useState, render } from './render'
 
 export default {
   createElement,
+  useState,
   render,
 }

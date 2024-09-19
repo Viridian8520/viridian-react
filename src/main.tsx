@@ -56,20 +56,46 @@ import viridianReact from './viridianReact'
 
 /** @jsx viridianReact.createElement */
 
+// const container = document.getElementById("root");
+
+// const updateValue = (e: any) => {
+//   renderer(e.target.value);
+// }
+
+// const renderer = (value: string) => {
+//   const element = (
+//     <div>
+//       <input onInput={updateValue} value={value} />
+//       <h2>current text is: {value}</h2>
+//     </div>
+//   )
+
+//   viridianReact.render(element, container);
+// }
+// renderer('阿弥诺斯');
+
 const container = document.getElementById("root");
 
-const updateValue = (e: any) => {
-  renderer(e.target.value);
-}
+function App() {
+  const [number, setNumber] = viridianReact.useState(1);
+  const [visible, setVisible] = viridianReact.useState(true);
 
-const renderer = (value: string) => {
-  const element = (
+  return (
     <div>
-      <input onInput={updateValue} value={value} />
-      <h2>current text is: {value}</h2>
+      <button
+        onClick={() => {
+          setNumber(number + 1);
+          setVisible(!visible);
+        }}
+      >
+        Click Me!
+      </button>
+      <h1>{number}</h1>
+      {
+        visible ? <h2>Can You See Me?</h2> : null
+      }
     </div>
   )
-
-  viridianReact.render(element, container);
 }
-renderer('阿弥诺斯');
+
+viridianReact.render(<App />, container);
